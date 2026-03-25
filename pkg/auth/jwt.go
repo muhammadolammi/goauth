@@ -8,21 +8,11 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 )
-
-func getSecureMode() bool {
-	enviroment := os.Getenv("ENV")
-	securemode := false
-	if enviroment == "deployment" {
-		securemode = true
-	}
-	return securemode
-}
 
 // GenerateFingerprint creates a random 32-byte string
 func GenerateFingerprint() (string, error) {
@@ -77,21 +67,26 @@ func CreateRefreshToken(s *AuthService, userId uuid.UUID, fingerprint string, w 
 	expiresAt := time.Now().UTC().Add(time.Duration(s.RefreshExpiry) * time.Minute)
 	//  save to http cookie
 	http.SetCookie(w, &http.Cookie{
-		Path:     "/refresh",
 		Name:     "refresh_token",
 		Value:    jwtRefreshTokenString,
 		Expires:  expiresAt,
+		Path:     "/",
 		HttpOnly: true,
-		Secure:   getSecureMode(),
+		Secure:   s.IsProduction,
 		SameSite: http.SameSiteStrictMode,
 	})
+	fgpName := "__Secure-Fgp"
+	if !s.IsProduction {
+		fgpName = "session_fgp"
+
+	}
 	http.SetCookie(w, &http.Cookie{
-		Path:     "/refresh",
-		Name:     "__Secure-Fgp",
+		Name:     fgpName,
 		Value:    fingerprint,
 		Expires:  expiresAt,
+		Path:     "/",
 		HttpOnly: true,
-		Secure:   getSecureMode(),
+		Secure:   s.IsProduction,
 		SameSite: http.SameSiteStrictMode,
 	})
 	// save refresh to db
@@ -132,19 +127,30 @@ func ValidateToken(tokenString string, jwtSecret []byte) (*Claims, error) {
 func (s *AuthService) ClearAuthCookies(w http.ResponseWriter) {
 	// We set the MaxAge to -1 and Expires to a date in the past
 	expired := time.Unix(0, 0)
+	http.SetCookie(w, &http.Cookie{
+		Name:     "refresh_token",
+		Value:    "",
+		Path:     "/",
+		Expires:  expired,
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   s.IsProduction,
+		SameSite: http.SameSiteStrictMode,
+	})
+	fgpName := "__Secure-Fgp"
+	if !s.IsProduction {
+		fgpName = "session_fgp"
 
-	cookieNames := []string{"refresh_token", "__Secure-Fgp"}
-
-	for _, name := range cookieNames {
-		http.SetCookie(w, &http.Cookie{
-			Name:     name,
-			Value:    "",
-			Path:     "/refresh",
-			Expires:  expired,
-			MaxAge:   -1,
-			HttpOnly: true,
-			Secure:   s.IsProduction,
-			SameSite: http.SameSiteStrictMode,
-		})
 	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     fgpName,
+		Value:    "",
+		Path:     "/",
+		Expires:  expired,
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   s.IsProduction,
+		SameSite: http.SameSiteStrictMode,
+	})
+
 }

@@ -79,7 +79,12 @@ func (s *AuthService) RefreshHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 2. Get the Fingerprint from the Secure Cookie
-	fgpCookie, err := r.Cookie("__Secure-Fgp")
+	fgpName := "__Secure-Fgp"
+	if !s.IsProduction {
+		fgpName = "session_fgp"
+
+	}
+	fgpCookie, err := r.Cookie(fgpName)
 	if err != nil {
 		RespondWithError(w, http.StatusUnauthorized, "Missing security fingerprint")
 		return
@@ -160,4 +165,5 @@ func (s *AuthService) LogoutHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Provider.RevokeUserTokens(r.Context(), user.ID)
 	s.ClearAuthCookies(w)
+	RespondWithJson(w, http.StatusOK, "")
 }
