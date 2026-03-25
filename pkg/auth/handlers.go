@@ -46,6 +46,7 @@ func (s *AuthService) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		RespondWithError(w, http.StatusUnauthorized, "invalid user")
 		return
 	}
+
 	// 4. Generate Fingerprint & Tokens
 	fingerprint, err := GenerateFingerprint()
 	if err != nil {
@@ -93,7 +94,11 @@ func (s *AuthService) RefreshHandler(w http.ResponseWriter, r *http.Request) {
 	if storedToken.Revoked {
 		// This is a major red flag! Someone is trying to reuse a rotated token.
 		// Potential breach detected.
-		s.Provider.RevokeUserTokens(r.Context(), storedToken.UserID)
+		err = s.Provider.RevokeUserTokens(r.Context(), storedToken.UserID)
+		if err != nil {
+			RespondWithError(w, http.StatusUnauthorized, "error rotating tokens")
+			return
+		}
 		s.ClearAuthCookies(w)
 		log.Printf("Security breach detected. UserId: %v, time: %v \n", storedToken.UserID, time.Now())
 		RespondWithError(w, http.StatusUnauthorized, "Security breach detected. Please login again.")

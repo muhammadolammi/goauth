@@ -27,7 +27,13 @@ func (s *AuthService) RequireAuth(next http.Handler) http.Handler {
 			return
 		}
 		// 3. Check Fingerprint cookie
-		fpCookie, _ := r.Cookie("__Secure-Fgp")
+		fpCookie, err := r.Cookie("__Secure-Fgp")
+		if err != nil {
+			// If the cookie is missing, fpCookie is nil.
+			// Accessing .Value here is what causes the panic.
+			RespondWithError(w, http.StatusUnauthorized, "missing security fingerprint")
+			return
+		}
 		if claims.Fingerprint != HashFingerprint(fpCookie.Value) {
 			RespondWithError(w, 401, "Invalid Session")
 			return
