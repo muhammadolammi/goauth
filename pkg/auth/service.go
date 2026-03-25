@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"database/sql"
 	"time"
 )
 
@@ -12,10 +11,9 @@ type AuthService struct {
 	RefreshExpiry time.Duration
 	Provider      IdentityProvider // The injected DB
 	IsProduction  bool
-	RefreshDbConn *sql.DB
 }
 
-func NewAuthService(secret, issuerName string, provider IdentityProvider, isProd bool, refreshDbConn *sql.DB) *AuthService {
+func NewAuthService(secret, issuerName string, provider IdentityProvider, isProd bool) *AuthService {
 	return &AuthService{
 		Issuer:        issuerName,
 		JwtSecret:     []byte(secret),
@@ -23,6 +21,5 @@ func NewAuthService(secret, issuerName string, provider IdentityProvider, isProd
 		RefreshExpiry: 7 * 24 * time.Hour,
 		Provider:      provider,
 		IsProduction:  isProd,
-		RefreshDbConn: refreshDbConn,
 	}
 }
