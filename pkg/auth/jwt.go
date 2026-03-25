@@ -46,7 +46,8 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
-func MakeJwtTokenString(s *AuthService, userId, hashedFingerprint string, tokenExpiration time.Duration) (string, error) {
+func MakeJwtTokenString(s *AuthService, userId, fingerprint string, tokenExpiration time.Duration) (string, error) {
+	hashedFingerprint := HashFingerprint(fingerprint)
 	claims := Claims{
 		UserID:      userId,
 		Fingerprint: hashedFingerprint,
@@ -69,7 +70,7 @@ func MakeJwtTokenString(s *AuthService, userId, hashedFingerprint string, tokenE
 
 func CreateRefreshToken(s *AuthService, userId uuid.UUID, fingerprint string, w http.ResponseWriter) (*RefreshToken, error) {
 	// create new jwt refresh token
-	jwtRefreshTokenString, err := MakeJwtTokenString(s, userId.String(), HashFingerprint(fingerprint), s.RefreshExpiry)
+	jwtRefreshTokenString, err := MakeJwtTokenString(s, userId.String(), fingerprint, s.RefreshExpiry)
 	if err != nil {
 		return &RefreshToken{}, err
 	}
@@ -126,4 +127,24 @@ func ValidateToken(tokenString string, jwtSecret []byte) (*Claims, error) {
 		return nil, errors.New("could not parse claims")
 	}
 	return claims, nil
+}
+
+func (s *AuthService) ClearAuthCookies(w http.ResponseWriter) {
+	// We set the MaxAge to -1 and Expires to a date in the past
+	expired := time.Unix(0, 0)
+
+	cookieNames := []string{"refresh_token", "__Secure-Fgp"}
+
+	for _, name := range cookieNames {
+		http.SetCookie(w, &http.Cookie{
+			Name:     name,
+			Value:    "",
+			Path:     "/refresh",
+			Expires:  expired,
+			MaxAge:   -1,
+			HttpOnly: true,
+			Secure:   s.IsProduction,
+			SameSite: http.SameSiteStrictMode,
+		})
+	}
 }

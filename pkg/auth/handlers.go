@@ -3,6 +3,7 @@ package auth
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -51,7 +52,7 @@ func (s *AuthService) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		RespondWithError(w, http.StatusInternalServerError, "error generating fingerprint")
 		return
 	}
-	accessToken, err := MakeJwtTokenString(s, user.ID.String(), HashFingerprint(fingerprint), s.AccessExpiry)
+	accessToken, err := MakeJwtTokenString(s, user.ID.String(), fingerprint, s.AccessExpiry)
 	if err != nil {
 		RespondWithError(w, http.StatusInternalServerError, "error generating tokens")
 		return
@@ -85,11 +86,19 @@ func (s *AuthService) RefreshHandler(w http.ResponseWriter, r *http.Request) {
 
 	// 3. Look up token in DB
 	storedToken, err := s.Provider.GetRefreshToken(r.Context(), cookie.Value)
-	if err != nil || storedToken.Revoked || time.Now().After(storedToken.ExpiresAt) {
+	if err != nil || time.Now().After(storedToken.ExpiresAt) {
 		RespondWithError(w, http.StatusUnauthorized, "Token invalid or expired")
 		return
 	}
-
+	if storedToken.Revoked {
+		// This is a major red flag! Someone is trying to reuse a rotated token.
+		// Potential breach detected.
+		s.Provider.RevokeUserTokens(r.Context(), storedToken.UserID)
+		s.ClearAuthCookies(w)
+		log.Printf("Security breach detected. UserId: %v, time: %v \n", storedToken.UserID, time.Now())
+		RespondWithError(w, http.StatusUnauthorized, "Security breach detected. Please login again.")
+		return
+	}
 	// 4. Validate JWT & Fingerprint
 	// Parse the JWT to get claims (UserID and the Hashed Fingerprint)
 	claims, err := ValidateToken(cookie.Value, s.JwtSecret)
@@ -106,22 +115,44 @@ func (s *AuthService) RefreshHandler(w http.ResponseWriter, r *http.Request) {
 
 	// 5. Rotate: Create New Credentials
 	newFingerprint, _ := GenerateFingerprint()
-	newAccessToken, _ := MakeJwtTokenString(s, claims.UserID, HashFingerprint(newFingerprint), s.AccessExpiry)
+	newAccessToken, _ := MakeJwtTokenString(s, claims.UserID, newFingerprint, s.AccessExpiry)
 	newRefreshToken, err := CreateRefreshToken(s, storedToken.UserID, newFingerprint, w)
 	if err != nil {
 		RespondWithError(w, http.StatusInternalServerError, "Rotation failed")
 		return
 	}
 	// 6. Update DB: Mark old token as replaced by the new one
-	storedToken.Revoked = true
-	storedToken.ReplacedBy = uuid.NullUUID{
-		Valid: true,
-		UUID:  newRefreshToken.ID,
+
+	arg := UpdateRefreshTokenParams{
+		ID:      storedToken.ID,
+		Revoked: true,
+		ReplacedBy: uuid.NullUUID{
+			Valid: true,
+			UUID:  newRefreshToken.ID,
+		},
 	}
 	// You would map the newRefreshTokenString to its ID here before saving
-	s.Provider.UpdateRefreshToken(r.Context(), storedToken)
+	s.Provider.UpdateRefreshToken(r.Context(), &arg)
 
 	RespondWithJson(w, http.StatusOK, map[string]string{
 		"access_token": newAccessToken,
 	})
+}
+
+func (s *AuthService) LogoutHandler(w http.ResponseWriter, r *http.Request) {
+	userIDStr, ok := r.Context().Value("user_id").(string)
+	if !ok {
+		RespondWithError(w, http.StatusUnauthorized, "User not found in context")
+		return
+	}
+	parsedID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		RespondWithError(w, http.StatusInternalServerError, "error parsing user id")
+	}
+	user, err := s.Provider.GetByID(r.Context(), parsedID)
+	if err != nil {
+		RespondWithError(w, http.StatusUnauthorized, "error getting user")
+	}
+	s.Provider.RevokeUserTokens(r.Context(), user.ID)
+	s.ClearAuthCookies(w)
 }

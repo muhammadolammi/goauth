@@ -26,12 +26,17 @@ type CreateRefreshTokenParams struct {
 	Token     string
 }
 
+type UpdateRefreshTokenParams struct {
+	ID         uuid.UUID
+	Revoked    bool
+	ReplacedBy uuid.NullUUID
+}
+
 type IdentityProvider interface {
 	GetByEmail(ctx context.Context, email string) (*User, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*User, error)
 	CreateRefreshToken(ctx context.Context, arg *CreateRefreshTokenParams) (*RefreshToken, error)
 	GetRefreshToken(ctx context.Context, token string) (*RefreshToken, error)
-	SaveRefreshToken(ctx context.Context, rt *RefreshToken) error
-	UpdateRefreshToken(ctx context.Context, rt *RefreshToken) error
+	UpdateRefreshToken(ctx context.Context, arg *UpdateRefreshTokenParams) error
 	RevokeUserTokens(ctx context.Context, userID uuid.UUID) error // For security breaches
 }
