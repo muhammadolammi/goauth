@@ -29,7 +29,7 @@ type CreateRefreshTokenParams struct {
 type IdentityProvider interface {
 	GetByEmail(ctx context.Context, email string) (*User, error)
 	GetByID(ctx context.Context, id string) (*User, error)
-	CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) (RefreshToken, error)
+	CreateRefreshToken(ctx context.Context, arg *CreateRefreshTokenParams) (*RefreshToken, error)
 	GetRefreshToken(ctx context.Context, token string) (*RefreshToken, error)
 	SaveRefreshToken(ctx context.Context, rt *RefreshToken) error
 	UpdateRefreshToken(ctx context.Context, rt *RefreshToken) error

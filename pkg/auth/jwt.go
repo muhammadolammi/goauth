@@ -67,11 +67,11 @@ func MakeJwtTokenString(s *AuthService, userId, hashedFingerprint string, tokenE
 
 }
 
-func CreateRefreshToken(s *AuthService, userId uuid.UUID, fingerprint string, w http.ResponseWriter) (RefreshToken, error) {
+func CreateRefreshToken(s *AuthService, userId uuid.UUID, fingerprint string, w http.ResponseWriter) (*RefreshToken, error) {
 	// create new jwt refresh token
 	jwtRefreshTokenString, err := MakeJwtTokenString(s, userId.String(), HashFingerprint(fingerprint), s.RefreshExpiry)
 	if err != nil {
-		return RefreshToken{}, err
+		return &RefreshToken{}, err
 	}
 	expiresAt := time.Now().UTC().Add(time.Duration(s.RefreshExpiry) * time.Minute)
 	//  save to http cookie
@@ -94,14 +94,14 @@ func CreateRefreshToken(s *AuthService, userId uuid.UUID, fingerprint string, w 
 		SameSite: http.SameSiteStrictMode,
 	})
 	// save refresh to db
-	refreshToken, err := s.Provider.CreateRefreshToken(context.Background(), CreateRefreshTokenParams{
+	refreshToken, err := s.Provider.CreateRefreshToken(context.Background(), &CreateRefreshTokenParams{
 		ExpiresAt: expiresAt,
 		Token:     jwtRefreshTokenString,
 		UserID:    userId,
 	})
 
 	if err != nil {
-		return RefreshToken{}, err
+		return &RefreshToken{}, err
 	}
 
 	return refreshToken, nil
