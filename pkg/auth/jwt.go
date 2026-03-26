@@ -73,7 +73,7 @@ func CreateRefreshToken(s *AuthService, userId uuid.UUID, fingerprint string, w 
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   s.IsProduction,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: http.SameSiteLaxMode,
 	})
 	fgpName := "__Secure-Fgp"
 	if !s.IsProduction {
@@ -87,7 +87,7 @@ func CreateRefreshToken(s *AuthService, userId uuid.UUID, fingerprint string, w 
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   s.IsProduction,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: http.SameSiteLaxMode,
 	})
 	// save refresh to db
 	refreshToken, err := s.Provider.CreateRefreshToken(context.Background(), &CreateRefreshTokenParams{
@@ -135,7 +135,7 @@ func (s *AuthService) ClearAuthCookies(w http.ResponseWriter) {
 		MaxAge:   -1,
 		HttpOnly: true,
 		Secure:   s.IsProduction,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: http.SameSiteLaxMode,
 	})
 	fgpName := "__Secure-Fgp"
 	if !s.IsProduction {
@@ -150,7 +150,7 @@ func (s *AuthService) ClearAuthCookies(w http.ResponseWriter) {
 		MaxAge:   -1,
 		HttpOnly: true,
 		Secure:   s.IsProduction,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: http.SameSiteLaxMode,
 	})
 
 }
