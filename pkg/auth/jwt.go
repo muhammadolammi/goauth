@@ -65,6 +65,10 @@ func CreateRefreshToken(s *AuthService, userId uuid.UUID, fingerprint string, w 
 		return &RefreshToken{}, err
 	}
 	expiresAt := time.Now().UTC().Add(time.Duration(s.RefreshExpiry) * time.Minute)
+	sameSite := http.SameSiteStrictMode
+	if s.IsProduction {
+		sameSite = http.SameSiteNoneMode
+	}
 	//  save to http cookie
 	http.SetCookie(w, &http.Cookie{
 		Name:     "refresh_token",
@@ -73,7 +77,7 @@ func CreateRefreshToken(s *AuthService, userId uuid.UUID, fingerprint string, w 
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   s.IsProduction,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: sameSite,
 	})
 	fgpName := "__Secure-Fgp"
 	if !s.IsProduction {
@@ -87,7 +91,7 @@ func CreateRefreshToken(s *AuthService, userId uuid.UUID, fingerprint string, w 
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   s.IsProduction,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: sameSite,
 	})
 	// save refresh to db
 	refreshToken, err := s.Provider.CreateRefreshToken(context.Background(), &CreateRefreshTokenParams{
@@ -127,6 +131,10 @@ func ValidateToken(tokenString string, jwtSecret []byte) (*Claims, error) {
 func (s *AuthService) ClearAuthCookies(w http.ResponseWriter) {
 	// We set the MaxAge to -1 and Expires to a date in the past
 	expired := time.Unix(0, 0)
+	sameSite := http.SameSiteStrictMode
+	if s.IsProduction {
+		sameSite = http.SameSiteNoneMode
+	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     "refresh_token",
 		Value:    "",
@@ -135,7 +143,7 @@ func (s *AuthService) ClearAuthCookies(w http.ResponseWriter) {
 		MaxAge:   -1,
 		HttpOnly: true,
 		Secure:   s.IsProduction,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: sameSite,
 	})
 	fgpName := "__Secure-Fgp"
 	if !s.IsProduction {
@@ -150,7 +158,7 @@ func (s *AuthService) ClearAuthCookies(w http.ResponseWriter) {
 		MaxAge:   -1,
 		HttpOnly: true,
 		Secure:   s.IsProduction,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: sameSite,
 	})
 
 }
