@@ -38,5 +38,5 @@ type IdentityProvider interface {
 	CreateRefreshToken(ctx context.Context, arg *CreateRefreshTokenParams) (*RefreshToken, error)
 	GetRefreshToken(ctx context.Context, token string) (*RefreshToken, error)
 	UpdateRefreshToken(ctx context.Context, arg *UpdateRefreshTokenParams) error
-	RevokeUserTokens(ctx context.Context, userID uuid.UUID) error // For security breaches
+	RevokeUserTokens(ctx context.Context, userID uuid.UUID) error
 }

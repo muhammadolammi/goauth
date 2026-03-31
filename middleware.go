@@ -2,7 +2,6 @@ package goauth
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"strings"
 )
@@ -30,14 +29,12 @@ func (s *AuthService) RequireAuth(next http.Handler) http.Handler {
 		// 3. Check Fingerprint cookie
 		fgpName := "__Secure-Fgp"
 		if !s.IsProduction {
-			log.Println("not secured env")
+			// log.Println("not secured env")
 			fgpName = "session_fgp"
 
 		}
 		fpCookie, err := r.Cookie(fgpName)
 		if err != nil {
-			// If the cookie is missing, fpCookie is nil.
-			// Accessing .Value here is what causes the panic.
 			RespondWithError(w, http.StatusUnauthorized, "missing security fingerprint")
 			return
 		}
