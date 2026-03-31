@@ -1,4 +1,4 @@
-package auth
+package goauth
 
 import (
 	"encoding/json"
