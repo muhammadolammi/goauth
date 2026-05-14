@@ -13,18 +13,22 @@ import (
 
 func (s *AuthService) GoogleAuthCallback(w http.ResponseWriter, r *http.Request, provider string) {
 	// provider := "google"
+	// log.Println("Cookies received:", r.Cookies())
 	r = r.WithContext(context.WithValue(r.Context(), "provider", provider))
 
 	googleUser, err := gothic.CompleteUserAuth(w, r)
 	if err != nil {
+		log.Println(err)
 		RespondWithError(w, http.StatusUnauthorized, "Google auth failed")
 		return
 	}
 
 	// 1. Check if user exists by email
 	existingUser, err := s.Provider.GetByEmail(r.Context(), googleUser.Email)
-	log.Printf("Google user: %+v\n", googleUser)
-	log.Printf("uSER LOCATION TO GET PARSE LOGIC: %v\n", googleUser.Location)
+	// log.Printf("Google user: %+v\n", googleUser)
+	// log.Printf("uSER LOCATION TO GET PARSE LOGIC: %v\n", googleUser.Location)
+	// log.Printf("Avatar url: %v\n", googleUser.AvatarURL)
+
 	// PARSE THE LOCATION FIELD TO EXTRACT COUNTRY AND STATE AND ADDRESS
 
 	if err == nil {
@@ -40,20 +44,7 @@ func (s *AuthService) GoogleAuthCallback(w http.ResponseWriter, r *http.Request,
 			return
 		}
 	} else {
-		// USER DOES NOT EXIST: Create new OAuth user
-		// EXTRACT COUNTRY AND STATE AND ADDRESS FROM LOCATION
-		address := ""
-		country := ""
-		state := ""
-		if googleUser.Location != "" {
-			parts := strings.Split(googleUser.Location, ",")
-			if len(parts) >= 2 {
-				state = strings.TrimSpace(parts[0])
-				country = strings.TrimSpace(parts[1])
-			} else {
-				country = strings.TrimSpace(parts[0])
-			}
-		}
+
 		params := CreateUserParams{
 			Email:           strings.ToLower(googleUser.Email),
 			FirstName:       googleUser.FirstName,
@@ -62,9 +53,6 @@ func (s *AuthService) GoogleAuthCallback(w http.ResponseWriter, r *http.Request,
 			GoogleID:        sql.NullString{String: googleUser.UserID, Valid: true},
 			IsEmailVerified: sql.NullBool{Bool: true, Valid: true},
 			AvatarUrl:       sql.NullString{String: googleUser.AvatarURL, Valid: googleUser.AvatarURL != ""},
-			Address:         sql.NullString{Valid: true, String: address},
-			Country:         sql.NullString{Valid: true, String: country},
-			State:           sql.NullString{Valid: true, String: state},
 			Role:            "user",
 		}
 		existingUser, err = s.Provider.CreateUser(r.Context(), &params)
@@ -99,7 +87,7 @@ func (s *AuthService) GoogleAuthCallback(w http.ResponseWriter, r *http.Request,
 
 	// 4. Redirect to Frontend with the Access Token
 	// We send the access token in the URL so the frontend can "pick it up"
-	frontendUrl := "http://localhost:3000/auth/callback"
+	frontendUrl := "http://localhost:5173/auth/callback"
 	if s.IsProduction {
 		frontendUrl = "https://n3xtbridge.com/auth/callback"
 	}
