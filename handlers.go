@@ -1,12 +1,15 @@
 package goauth
 
 import (
+	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -166,4 +169,104 @@ func (s *AuthService) LogoutHandler(w http.ResponseWriter, r *http.Request) {
 	s.Provider.RevokeUserTokens(r.Context(), user.ID)
 	s.ClearAuthCookies(w)
 	RespondWithJson(w, http.StatusOK, "")
+}
+
+type SignupInput struct {
+	Email       string `json:"email"`
+	Password    string `json:"password"`
+	FirstName   string `json:"first_name"`
+	LastName    string `json:"last_name"`
+	PhoneNumber string `json:"phone_number"`
+	Address     string `json:"address"`
+	Country     string `json:"country"`
+	State       string `json:"state"`
+}
+
+func validatePassword(password string) error {
+	var (
+		hasUpper  bool
+		hasLower  bool
+		hasSymbol bool
+	)
+
+	if len(password) < 10 {
+		return fmt.Errorf("password must be at least 10 characters long")
+	}
+
+	for _, char := range password {
+		switch {
+		case unicode.IsUpper(char):
+			hasUpper = true
+		case unicode.IsLower(char):
+			hasLower = true
+		case unicode.IsPunct(char) || unicode.IsSymbol(char):
+			hasSymbol = true
+		}
+	}
+
+	if !hasUpper || !hasLower || !hasSymbol {
+		return fmt.Errorf("password must include uppercase, lowercase, and a symbol")
+	}
+
+	return nil
+}
+func HashPassword(password string) (string, error) {
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	return string(bytes), err
+}
+
+func CheckPasswordHash(password, hash string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+	return err == nil
+}
+
+func (s *AuthService) SignupHandler(w http.ResponseWriter, r *http.Request) {
+	var input SignupInput
+
+	err := json.NewDecoder(r.Body).Decode(&input)
+	if err != nil {
+		RespondWithError(w, http.StatusBadRequest, "invalid request, err: "+err.Error())
+		return
+	}
+
+	// Check if user already exists
+	existingUser, _ := s.Provider.GetByEmail(context.Background(), input.Email)
+	if existingUser.ID != uuid.Nil {
+		RespondWithError(w, http.StatusConflict, "user with this email already exists")
+		return
+	}
+
+	err = validatePassword(input.Password)
+	if err != nil {
+		RespondWithError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	// Hash password
+	passwordHash, err := HashPassword(input.Password)
+	if err != nil {
+		RespondWithError(w, http.StatusInternalServerError, "failed to hash password")
+		return
+	}
+
+	// Create user
+	params := CreateUserParams{
+		Email:        strings.ToLower(strings.TrimSpace(input.Email)),
+		PasswordHash: sql.NullString{String: passwordHash, Valid: true},
+		FirstName:    input.FirstName,
+		LastName:     input.LastName,
+		PhoneNumber:  sql.NullString{String: input.PhoneNumber, Valid: input.PhoneNumber != ""},
+		Address:      sql.NullString{Valid: true, String: input.Address},
+		Country:      sql.NullString{Valid: true, String: input.Country},
+		State:        sql.NullString{Valid: true, String: input.State},
+		Role:         "user", // default role
+	}
+
+	_, err = s.Provider.CreateUser(context.Background(), &params)
+	if err != nil {
+		log.Println("failed to create user: " + err.Error())
+		RespondWithError(w, http.StatusInternalServerError, "failed to create user: ")
+		return
+	}
+
+	RespondWithJson(w, http.StatusOK, "signup successful")
 }
