@@ -27,10 +27,10 @@ func (s *AuthService) RequireAuth(next http.Handler) http.Handler {
 			return
 		}
 		// 3. Check Fingerprint cookie
-		fgpName := "__Secure-Fgp"
-		if !s.IsProduction {
+		fgpName := "session_fgp"
+		if s.IsProduction {
 			// log.Println("not secured env")
-			fgpName = "session_fgp"
+			fgpName = "__Secure-Fgp"
 
 		}
 		fpCookie, err := r.Cookie(fgpName)
